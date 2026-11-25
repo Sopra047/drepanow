@@ -29,13 +29,22 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+server-test*.log
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
 
+# données de santé réelles — ne jamais versionner dans un dépôt public
+/data/*.xlsx
+/data/*.csv
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# archives de déploiement (artefact de build, pas du code source)
+*.zip

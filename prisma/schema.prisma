@@ -1,0 +1,88 @@
+// MySQL — choisi pour l'hébergement mutualisé PlanetHoster/N0C : SQLite (fichier
+// embarqué dans le processus Node) s'est révélé peu fiable sur ce type d'hébergement
+// à mémoire contrainte (plantages silencieux des routes touchant la base). MySQL
+// tourne en service séparé, inclus gratuitement sur quasi tous les plans cPanel/N0C.
+// Migration vers PostgreSQL + PostGIS envisageable plus tard si besoin de géométries
+// avancées (cf. README, "Exigences techniques").
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// "driverAdapters" : Prisma communique avec MySQL via le pilote JS pur `mariadb`
+// (src/lib/db.ts) au lieu de son moteur natif Rust habituel. Nécessaire sur cet
+// hébergement : le moteur natif (processus/connexion plus lourds) se fait tuer en
+// silence par les limites de ressources appliquées aux processus gérés par
+// Passenger (confirmé : le même code fonctionne en lancement direct, jamais via
+// Passenger, uniquement sur les routes touchant la base).
+generator client {
+  provider = "prisma-client-js"
+}
+
+model ImportBatch {
+  id        Int      @id @default(autoincrement())
+  source    String
+  rows      Int
+  inferred  Int
+  createdAt DateTime @default(now())
+  records   PatientRecord[]
+}
+
+model PatientRecord {
+  id       Int      @id @default(autoincrement())
+  code     String // identifiant anonyme recodé (ex: HRAF-001) — jamais de nom complet
+  dateTest DateTime?
+  dateEnr  DateTime?
+  sexe     String // M | F | ?
+  age      Int?
+  quartier String
+  localite String
+  geno     String // AA | AS | SS | SC | Autre
+  symp     String // Oui | Non | Inconnu
+  contexte String
+  hopital  String
+  atcd     String // "Oui" ou ""
+
+  batchId Int
+  batch   ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  // Longueur d'index limitée (pas le contenu) : un index composé sur deux VARCHAR
+  // en utf8mb4 dépasse la limite de clé MySQL (767-1000 octets selon la version).
+  @@index([quartier(length: 100), localite(length: 100)])
+  @@index([geno])
+}
+
+/** Comptes du personnel habilité (Administrateur, Utilisateur santé). Les visiteurs
+ * publics (rôle "lecteur") ne créent pas de compte — accès libre, sans connexion. */
+model StaffUser {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  role         String // "admin" | "sante"
+  createdAt    DateTime @default(now())
+}
+
+/** Cache de géolocalisation des quartiers/localités qui ne sont pas dans la table
+ * codée en dur `src/lib/geo.ts` (Foumban). Permet d'importer des registres d'autres
+ * villes du Cameroun : au premier import, le quartier est géocodé (OpenStreetMap
+ * Nominatim) puis mis en cache ici pour les imports suivants. */
+model QuartierLocation {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique // strip(quartier) + "|" + strip(localite)
+  quartier  String
+  localite  String
+  lat       Float
+  lon       Float
+  source    String // "geocoded" | "manual"
+  createdAt DateTime @default(now())
+}
+
+model GeneratedReport {
+  id          Int      @id @default(autoincrement())
+  type        String
+  scope       String
+  content     String   @db.Text // rapports longs (500-700 mots) : VARCHAR(191) par défaut tronquerait
+  authorEmail String?
+  filters     String // JSON des filtres actifs au moment de la génération
+  createdAt   DateTime @default(now())
+}

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Script Node CommonJS autonome requis par Passenger (pas du code applicatif) —
+    // require() y est l'usage normal.
+    "server.js",
   ]),
 ]);
 
