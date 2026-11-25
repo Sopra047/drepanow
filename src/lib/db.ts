@@ -12,7 +12,16 @@ import { PrismaClient } from "@prisma/client";
  *
  * DB_SSL (optionnel) : à mettre à "true" pour les bases MySQL/MariaDB cloud qui
  * exigent TLS (ex. TiDB Cloud Serverless, utilisé pour l'hébergement Vercel —
- * les fonctions serverless ne peuvent pas atteindre une base en localhost). */
+ * les fonctions serverless ne peuvent pas atteindre une base en localhost).
+ *
+ * connectTimeout élevé + connectionLimit bas : en serverless (Vercel), chaque
+ * cold start peut devoir établir une connexion TLS cross-région vers la base ;
+ * le `connectTimeout` par défaut du pilote `mariadb` (1s) est trop court pour
+ * ça et fait échouer silencieusement toute tentative de connexion (observé en
+ * prod : `pool failed to retrieve a connection from pool (active=0 idle=0)`,
+ * alors que la même base fonctionnait en local). Un pool réduit évite aussi
+ * d'épuiser les connexions simultanées autorisées par la base quand plusieurs
+ * instances de fonction tournent en parallèle. */
 function buildConnectionConfig(databaseUrl: string, socketPath?: string, ssl?: boolean) {
   const u = new URL(databaseUrl);
   const user = decodeURIComponent(u.username);
@@ -20,7 +29,7 @@ function buildConnectionConfig(databaseUrl: string, socketPath?: string, ssl?: b
   const database = u.pathname.replace(/^\//, "");
 
   if (socketPath) {
-    return { socketPath, user, password, database };
+    return { socketPath, user, password, database, connectTimeout: 20000 };
   }
   return {
     host: u.hostname,
@@ -28,6 +37,8 @@ function buildConnectionConfig(databaseUrl: string, socketPath?: string, ssl?: b
     user,
     password,
     database,
+    connectTimeout: 20000,
+    connectionLimit: 3,
     ...(ssl ? { ssl: {} } : {}),
   };
 }
