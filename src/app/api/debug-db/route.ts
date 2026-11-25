@@ -6,7 +6,7 @@ import mariadb from "mariadb";
 export async function GET() {
   const u = new URL(process.env.DATABASE_URL!);
   const started = Date.now();
-  const dbSslRaw = JSON.stringify(process.env.DB_SSL);
+  const dbSslRaw = process.env.DB_SSL ?? null;
   try {
     const conn = await mariadb.createConnection({
       host: u.hostname,
