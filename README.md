@@ -20,8 +20,9 @@ cp .env.example .env.local   # puis éditer DATABASE_URL/SESSION_SECRET
 
 # 3. Dépendances + schéma + données
 npm install
-npm run db:push
-npm run db:seed      # comptes de démo + registre HRAF réel (41 fiches)
+npm run db:push   # ⚠️ Prisma CLI ne lit pas .env.local automatiquement (contrairement à `next dev`) —
+npm run db:seed   # charger les variables dans le shell avant (ex. `set -a && source .env.local && set +a`
+                   # sous bash, ou `Get-Content .env.local | ... ` côté PowerShell), sinon il utilisera `.env`.
 
 # 4. Lancer
 npm run dev
