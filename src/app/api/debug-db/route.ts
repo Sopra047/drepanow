@@ -6,6 +6,7 @@ import mariadb from "mariadb";
 export async function GET() {
   const u = new URL(process.env.DATABASE_URL!);
   const started = Date.now();
+  const dbSslRaw = JSON.stringify(process.env.DB_SSL);
   try {
     const conn = await mariadb.createConnection({
       host: u.hostname,
@@ -14,11 +15,11 @@ export async function GET() {
       password: decodeURIComponent(u.password),
       database: u.pathname.replace(/^\//, ""),
       connectTimeout: 20000,
-      ssl: process.env.DB_SSL === "true" ? {} : undefined,
+      ssl: process.env.DB_SSL?.trim().toLowerCase() === "true" ? {} : undefined,
     });
     const rows = await conn.query("SELECT 1 AS ok");
     await conn.end();
-    return NextResponse.json({ success: true, ms: Date.now() - started, rows });
+    return NextResponse.json({ success: true, ms: Date.now() - started, rows, dbSslRaw });
   } catch (e) {
     const err = e as Error & { code?: string; errno?: number; sqlState?: string };
     return NextResponse.json(
@@ -30,6 +31,7 @@ export async function GET() {
         code: err.code,
         errno: err.errno,
         sqlState: err.sqlState,
+        dbSslRaw,
       },
       { status: 500 }
     );

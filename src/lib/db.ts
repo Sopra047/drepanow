@@ -13,15 +13,15 @@ import { PrismaClient } from "@prisma/client";
  * DB_SSL (optionnel) : à mettre à "true" pour les bases MySQL/MariaDB cloud qui
  * exigent TLS (ex. TiDB Cloud Serverless, utilisé pour l'hébergement Vercel —
  * les fonctions serverless ne peuvent pas atteindre une base en localhost).
+ * Comparaison tolérante (trim + casse) : une variable d'environnement mal
+ * copiée (espace, majuscule) ne doit pas faire échouer silencieusement le TLS
+ * et provoquer l'erreur TiDB "insecure transport" — déjà rencontré en prod,
+ * masqué par Prisma derrière un message générique de pool de connexions.
  *
- * connectTimeout élevé + connectionLimit bas : en serverless (Vercel), chaque
- * cold start peut devoir établir une connexion TLS cross-région vers la base ;
- * le `connectTimeout` par défaut du pilote `mariadb` (1s) est trop court pour
- * ça et fait échouer silencieusement toute tentative de connexion (observé en
- * prod : `pool failed to retrieve a connection from pool (active=0 idle=0)`,
- * alors que la même base fonctionnait en local). Un pool réduit évite aussi
- * d'épuiser les connexions simultanées autorisées par la base quand plusieurs
- * instances de fonction tournent en parallèle. */
+ * connectionLimit bas : évite d'épuiser les connexions simultanées autorisées
+ * par la base quand plusieurs instances de fonction serverless tournent en
+ * parallèle. connectTimeout généreux : laisse le temps à un handshake TLS
+ * cross-région d'aboutir lors d'un cold start. */
 function buildConnectionConfig(databaseUrl: string, socketPath?: string, ssl?: boolean) {
   const u = new URL(databaseUrl);
   const user = decodeURIComponent(u.username);
@@ -49,7 +49,7 @@ function createClient() {
   const config = buildConnectionConfig(
     process.env.DATABASE_URL!,
     process.env.DB_SOCKET_PATH,
-    process.env.DB_SSL === "true"
+    process.env.DB_SSL?.trim().toLowerCase() === "true"
   );
   const adapter = new PrismaMariaDb(config);
   return new PrismaClient({ adapter });
